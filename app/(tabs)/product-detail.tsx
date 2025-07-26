@@ -437,6 +437,15 @@ export default function ProductDetailScreen() {
           </View>
         </View>
 
+        {/* AR Preview Button */}
+        <TouchableOpacity 
+          style={styles.arPreviewButton}
+          onPress={() => router.push('/ar-preview')}
+        >
+          <Ionicons name="cube-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.arPreviewText}>Try AR Preview</Text>
+        </TouchableOpacity>
+
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <TouchableOpacity style={styles.addToCartButton} onPress={addToCart}>
@@ -735,6 +744,21 @@ const styles = StyleSheet.create({
   quantityText: {
     paddingHorizontal: 16,
     fontSize: 16,
+  },
+  arPreviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7B1FA2',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  arPreviewText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 8,
   },
   actionButtons: {
     flexDirection: 'row',
