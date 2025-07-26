@@ -2,437 +2,836 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
+  ScrollView,
   TouchableOpacity,
-  FlatList,
+  StyleSheet,
   Image,
-  Dimensions,
+  FlatList,
+  Modal,
+  Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Filter, X, Star, Mic } from 'lucide-react-native';
-import { Product } from '@/types';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { blink } from '../../lib/blink';
 
-const { width } = Dimensions.get('window');
-const PRODUCT_WIDTH = (width - 48) / 2;
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  images: string[];
+  rating: number;
+  category_id: string;
+  seller_id: string;
+  stock_quantity: number;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  image: string;
+}
+
+interface FilterOptions {
+  minPrice: string;
+  maxPrice: string;
+  rating: number;
+  category: string;
+  sortBy: string;
+  inStock: boolean;
+}
 
 export default function SearchScreen() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
-  const [recentSearches, setRecentSearches] = useState<string[]>([
-    'wireless headphones',
-    'smart watch',
-    'running shoes',
-    'laptop',
-  ]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [filters, setFilters] = useState({
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [filters, setFilters] = useState<FilterOptions>({
+    minPrice: '',
+    maxPrice: '',
+    rating: 0,
     category: '',
-    priceRange: '',
-    rating: '',
-    brand: '',
+    sortBy: 'relevance',
+    inStock: false,
   });
 
-  const sampleProducts: Product[] = [
-    {
-      id: '1',
-      name: 'Wireless Bluetooth Headphones',
-      description: 'Premium noise-cancelling headphones',
-      price: 199.99,
-      originalPrice: 249.99,
-      images: ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400'],
-      category: 'Electronics',
-      brand: 'AudioTech',
-      rating: 4.8,
-      reviewCount: 1247,
-      inStock: true,
-      tags: ['wireless', 'bluetooth', 'headphones'],
-      sellerId: 'seller1',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      name: 'Smart Fitness Watch',
-      description: 'Advanced health and fitness tracking',
-      price: 299.99,
-      images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400'],
-      category: 'Wearables',
-      brand: 'FitTech',
-      rating: 4.6,
-      reviewCount: 892,
-      inStock: true,
-      tags: ['fitness', 'smartwatch', 'health'],
-      sellerId: 'seller2',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '3',
-      name: 'Running Shoes',
-      description: 'Comfortable athletic shoes for daily runs',
-      price: 129.99,
-      originalPrice: 159.99,
-      images: ['https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400'],
-      category: 'Sports',
-      brand: 'RunFast',
-      rating: 4.5,
-      reviewCount: 567,
-      inStock: true,
-      tags: ['running', 'shoes', 'athletic'],
-      sellerId: 'seller3',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
+  useEffect(() => {
+    loadCategories();
+    loadRecentSearches();
+    loadTrendingProducts();
+  }, []);
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query.trim()) {
-      setIsSearching(true);
-      // Simulate search delay
-      setTimeout(() => {
-        const filtered = sampleProducts.filter(product =>
-          product.name.toLowerCase().includes(query.toLowerCase()) ||
-          product.category.toLowerCase().includes(query.toLowerCase()) ||
-          product.brand.toLowerCase().includes(query.toLowerCase()) ||
-          product.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
-        );
-        setSearchResults(filtered);
-        setIsSearching(false);
-        
-        // Add to recent searches if not already there
-        if (!recentSearches.includes(query)) {
-          setRecentSearches(prev => [query, ...prev.slice(0, 4)]);
-        }
-      }, 500);
-    } else {
-      setSearchResults([]);
-      setIsSearching(false);
+  const loadCategories = async () => {
+    try {
+      const categoriesData = await blink.db.categories.list({
+        limit: 10,
+      });
+      setCategories(categoriesData as Category[]);
+    } catch (error) {
+      console.error('Error loading categories:', error);
     }
   };
 
-  const clearSearch = () => {
-    setSearchQuery('');
-    setSearchResults([]);
-    setIsSearching(false);
+  const loadRecentSearches = () => {
+    // In a real app, this would come from local storage
+    setRecentSearches(['iPhone', 'Laptop', 'Headphones', 'T-shirt', 'Smart Watch']);
   };
 
-  const renderProductCard = ({ item }: { item: Product }) => (
-    <TouchableOpacity style={styles.productCard}>
+  const loadTrendingProducts = async () => {
+    try {
+      const productsData = await blink.db.products.list({
+        orderBy: { rating: 'desc' },
+        limit: 10,
+      });
+      
+      const formattedProducts = productsData.map((product: any) => ({
+        ...product,
+        images: typeof product.images === 'string' ? JSON.parse(product.images) : product.images,
+      }));
+      
+      setProducts(formattedProducts);
+    } catch (error) {
+      console.error('Error loading trending products:', error);
+    }
+  };
+
+  const searchProducts = async (query: string, appliedFilters?: FilterOptions) => {
+    if (!query.trim() && !appliedFilters) {
+      loadTrendingProducts();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const currentFilters = appliedFilters || filters;
+      let whereClause: any = {};
+
+      // Text search
+      if (query.trim()) {
+        whereClause.OR = [
+          { name: { contains: query } },
+          { description: { contains: query } },
+        ];
+      }
+
+      // Price filters
+      if (currentFilters.minPrice) {
+        whereClause.price = { ...whereClause.price, gte: parseFloat(currentFilters.minPrice) };
+      }
+      if (currentFilters.maxPrice) {
+        whereClause.price = { ...whereClause.price, lte: parseFloat(currentFilters.maxPrice) };
+      }
+
+      // Rating filter
+      if (currentFilters.rating > 0) {
+        whereClause.rating = { gte: currentFilters.rating };
+      }
+
+      // Category filter
+      if (currentFilters.category) {
+        whereClause.category_id = currentFilters.category;
+      }
+
+      // Stock filter
+      if (currentFilters.inStock) {
+        whereClause.stock_quantity = { gt: 0 };
+      }
+
+      // Sort options
+      let orderBy: any = { created_at: 'desc' };
+      switch (currentFilters.sortBy) {
+        case 'price_low':
+          orderBy = { price: 'asc' };
+          break;
+        case 'price_high':
+          orderBy = { price: 'desc' };
+          break;
+        case 'rating':
+          orderBy = { rating: 'desc' };
+          break;
+        case 'newest':
+          orderBy = { created_at: 'desc' };
+          break;
+      }
+
+      const productsData = await blink.db.products.list({
+        where: whereClause,
+        orderBy: orderBy,
+        limit: 50,
+      });
+      
+      const formattedProducts = productsData.map((product: any) => ({
+        ...product,
+        images: typeof product.images === 'string' ? JSON.parse(product.images) : product.images,
+      }));
+      
+      setProducts(formattedProducts);
+
+      // Add to recent searches if it's a text search
+      if (query.trim() && !recentSearches.includes(query)) {
+        setRecentSearches([query, ...recentSearches.slice(0, 4)]);
+      }
+    } catch (error) {
+      console.error('Error searching products:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    searchProducts(query);
+  };
+
+  const handleVoiceSearch = () => {
+    setIsRecording(true);
+    // Simulate voice recording
+    setTimeout(() => {
+      setIsRecording(false);
+      const voiceQuery = "wireless headphones";
+      setSearchQuery(voiceQuery);
+      searchProducts(voiceQuery);
+      Alert.alert('Voice Search', `Searching for: "${voiceQuery}"`);
+    }, 2000);
+  };
+
+  const applyFilters = () => {
+    setShowFilters(false);
+    searchProducts(searchQuery, filters);
+  };
+
+  const clearFilters = () => {
+    const clearedFilters = {
+      minPrice: '',
+      maxPrice: '',
+      rating: 0,
+      category: '',
+      sortBy: 'relevance',
+      inStock: false,
+    };
+    setFilters(clearedFilters);
+    searchProducts(searchQuery, clearedFilters);
+  };
+
+  const navigateToProduct = (productId: string) => {
+    router.push(`/(tabs)/product-detail?id=${productId}`);
+  };
+
+  const renderProduct = ({ item }: { item: Product }) => (
+    <TouchableOpacity 
+      style={styles.productCard}
+      onPress={() => navigateToProduct(item.id)}
+    >
       <Image source={{ uri: item.images[0] }} style={styles.productImage} />
-      {item.originalPrice && (
-        <View style={styles.discountBadge}>
-          <Text style={styles.discountText}>
-            {Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}% OFF
-          </Text>
-        </View>
-      )}
       <View style={styles.productInfo}>
         <Text style={styles.productName} numberOfLines={2}>
           {item.name}
         </Text>
-        <Text style={styles.productBrand}>{item.brand}</Text>
+        <Text style={styles.productPrice}>₹{item.price.toLocaleString()}</Text>
         <View style={styles.ratingContainer}>
-          <Star size={12} color="#F59E0B" fill="#F59E0B" />
-          <Text style={styles.rating}>{item.rating}</Text>
-          <Text style={styles.reviewCount}>({item.reviewCount})</Text>
+          <Ionicons name="star" size={16} color="#FFD700" />
+          <Text style={styles.ratingText}>{item.rating}</Text>
         </View>
-        <View style={styles.priceContainer}>
-          <Text style={styles.price}>${item.price}</Text>
-          {item.originalPrice && (
-            <Text style={styles.originalPrice}>${item.originalPrice}</Text>
-          )}
-        </View>
+        {item.stock_quantity === 0 && (
+          <Text style={styles.outOfStock}>Out of Stock</Text>
+        )}
       </View>
     </TouchableOpacity>
   );
 
+  const renderCategory = ({ item }: { item: Category }) => (
+    <TouchableOpacity 
+      style={styles.categoryCard}
+      onPress={() => {
+        setFilters({ ...filters, category: item.id });
+        searchProducts('', { ...filters, category: item.id });
+      }}
+    >
+      <Image source={{ uri: item.image }} style={styles.categoryImage} />
+      <Text style={styles.categoryName}>{item.name}</Text>
+    </TouchableOpacity>
+  );
+
+  const renderStars = (rating: number, onPress?: (rating: number) => void) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <TouchableOpacity
+        key={i}
+        onPress={() => onPress && onPress(i + 1)}
+        disabled={!onPress}
+      >
+        <Ionicons
+          name={i < rating ? 'star' : 'star-outline'}
+          size={20}
+          color="#FFD700"
+        />
+      </TouchableOpacity>
+    ));
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Search Header */}
+    <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <Search size={20} color="#9CA3AF" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search for products..."
-              value={searchQuery}
-              onChangeText={handleSearch}
-              placeholderTextColor="#9CA3AF"
-              autoFocus
+        <Image
+          source={require('../../assets/images/citymerce-logo.jpg')}
+          style={styles.logo}
+        />
+        <Text style={styles.headerTitle}>Search Products</Text>
+      </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={20} color="#666" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search for products..."
+            value={searchQuery}
+            onChangeText={handleSearch}
+            autoCapitalize="none"
+          />
+          <TouchableOpacity onPress={handleVoiceSearch}>
+            <Ionicons 
+              name="mic" 
+              size={20} 
+              color={isRecording ? "#FF9800" : "#2E7D32"} 
             />
-            {searchQuery ? (
-              <TouchableOpacity onPress={clearSearch}>
-                <X size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity>
-                <Mic size={20} color="#6366F1" />
-              </TouchableOpacity>
-            )}
-          </View>
-          <TouchableOpacity style={styles.filterButton}>
-            <Filter size={20} color="#6366F1" />
+          </TouchableOpacity>
+        </View>
+        
+        {/* Filter and Sort Bar */}
+        <View style={styles.filterBar}>
+          <TouchableOpacity 
+            style={styles.filterButton}
+            onPress={() => setShowFilters(true)}
+          >
+            <Ionicons name="filter" size={16} color="#2E7D32" />
+            <Text style={styles.filterButtonText}>Filters</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.sortButton}>
+            <Ionicons name="swap-vertical" size={16} color="#2E7D32" />
+            <Text style={styles.sortButtonText}>Sort</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Content */}
-      {!searchQuery && !isSearching && searchResults.length === 0 ? (
-        <View style={styles.emptyState}>
-          {/* Recent Searches */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent Searches</Text>
-            <View style={styles.recentSearches}>
-              {recentSearches.map((search, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.recentSearchItem}
-                  onPress={() => handleSearch(search)}
-                >
-                  <Text style={styles.recentSearchText}>{search}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Popular Categories */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Popular Categories</Text>
-            <View style={styles.categoriesGrid}>
-              {[
-                { name: 'Electronics', icon: '📱' },
-                { name: 'Fashion', icon: '👕' },
-                { name: 'Home & Garden', icon: '🏠' },
-                { name: 'Sports', icon: '⚽' },
-                { name: 'Beauty', icon: '💄' },
-                { name: 'Books', icon: '📚' },
-              ].map((category, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.categoryCard}
-                  onPress={() => handleSearch(category.name)}
-                >
-                  <Text style={styles.categoryIcon}>{category.icon}</Text>
-                  <Text style={styles.categoryName}>{category.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-      ) : isSearching ? (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Searching...</Text>
-        </View>
-      ) : (
-        <View style={styles.resultsContainer}>
-          <View style={styles.resultsHeader}>
-            <Text style={styles.resultsCount}>
-              {searchResults.length} results for "{searchQuery}"
-            </Text>
-          </View>
-          <FlatList
-            data={searchResults}
-            renderItem={renderProductCard}
-            keyExtractor={(item) => item.id}
-            numColumns={2}
-            columnWrapperStyle={styles.productRow}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.resultsList}
-          />
+      {/* Voice Recording Indicator */}
+      {isRecording && (
+        <View style={styles.recordingIndicator}>
+          <View style={styles.recordingDot} />
+          <Text style={styles.recordingText}>Listening...</Text>
         </View>
       )}
-    </SafeAreaView>
+
+      <ScrollView style={styles.content}>
+        {searchQuery === '' && Object.values(filters).every(v => !v || v === 'relevance') ? (
+          <>
+            {/* Recent Searches */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Recent Searches</Text>
+              <View style={styles.recentSearches}>
+                {recentSearches.map((search, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.recentSearchItem}
+                    onPress={() => handleSearch(search)}
+                  >
+                    <Ionicons name="time-outline" size={16} color="#666" />
+                    <Text style={styles.recentSearchText}>{search}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Popular Categories */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Popular Categories</Text>
+              <FlatList
+                data={categories}
+                renderItem={renderCategory}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoriesList}
+              />
+            </View>
+
+            {/* Trending Products */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Trending Products</Text>
+              <FlatList
+                data={products}
+                renderItem={renderProduct}
+                keyExtractor={(item) => item.id}
+                numColumns={2}
+                columnWrapperStyle={styles.productRow}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
+          </>
+        ) : (
+          <>
+            {/* Search Results */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                {loading ? 'Searching...' : `${products.length} results found`}
+              </Text>
+              <FlatList
+                data={products}
+                renderItem={renderProduct}
+                keyExtractor={(item) => item.id}
+                numColumns={2}
+                columnWrapperStyle={styles.productRow}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+      {/* Filters Modal */}
+      <Modal visible={showFilters} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filters</Text>
+              <TouchableOpacity onPress={() => setShowFilters(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.filterContent}>
+              {/* Price Range */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Price Range</Text>
+                <View style={styles.priceInputs}>
+                  <TextInput
+                    style={styles.priceInput}
+                    placeholder="Min Price"
+                    value={filters.minPrice}
+                    onChangeText={(text) => setFilters({ ...filters, minPrice: text })}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.priceSeparator}>to</Text>
+                  <TextInput
+                    style={styles.priceInput}
+                    placeholder="Max Price"
+                    value={filters.maxPrice}
+                    onChangeText={(text) => setFilters({ ...filters, maxPrice: text })}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              {/* Rating */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Minimum Rating</Text>
+                <View style={styles.ratingFilter}>
+                  {renderStars(filters.rating, (rating) => 
+                    setFilters({ ...filters, rating })
+                  )}
+                  <Text style={styles.ratingText}>& above</Text>
+                </View>
+              </View>
+
+              {/* Category */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Category</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <TouchableOpacity
+                    style={[
+                      styles.categoryFilterItem,
+                      filters.category === '' && styles.selectedCategoryFilter,
+                    ]}
+                    onPress={() => setFilters({ ...filters, category: '' })}
+                  >
+                    <Text style={styles.categoryFilterText}>All</Text>
+                  </TouchableOpacity>
+                  {categories.map((category) => (
+                    <TouchableOpacity
+                      key={category.id}
+                      style={[
+                        styles.categoryFilterItem,
+                        filters.category === category.id && styles.selectedCategoryFilter,
+                      ]}
+                      onPress={() => setFilters({ ...filters, category: category.id })}
+                    >
+                      <Text style={styles.categoryFilterText}>{category.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* Sort By */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Sort By</Text>
+                {[
+                  { key: 'relevance', label: 'Relevance' },
+                  { key: 'price_low', label: 'Price: Low to High' },
+                  { key: 'price_high', label: 'Price: High to Low' },
+                  { key: 'rating', label: 'Customer Rating' },
+                  { key: 'newest', label: 'Newest First' },
+                ].map((option) => (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={styles.sortOption}
+                    onPress={() => setFilters({ ...filters, sortBy: option.key })}
+                  >
+                    <Ionicons
+                      name={filters.sortBy === option.key ? 'radio-button-on' : 'radio-button-off'}
+                      size={20}
+                      color="#2E7D32"
+                    />
+                    <Text style={styles.sortOptionText}>{option.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Availability */}
+              <View style={styles.filterSection}>
+                <TouchableOpacity
+                  style={styles.checkboxOption}
+                  onPress={() => setFilters({ ...filters, inStock: !filters.inStock })}
+                >
+                  <Ionicons
+                    name={filters.inStock ? 'checkbox' : 'checkbox-outline'}
+                    size={20}
+                    color="#2E7D32"
+                  />
+                  <Text style={styles.checkboxText}>In Stock Only</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
+                <Text style={styles.clearButtonText}>Clear All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.applyButton} onPress={applyFilters}>
+                <Text style={styles.applyButtonText}>Apply Filters</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#fff',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingTop: 50,
+    backgroundColor: '#2E7D32',
+  },
+  logo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    padding: 16,
+    backgroundColor: '#f5f5f5',
   },
   searchBar: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderRadius: 25,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  filterButton: {
-    backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 12,
-  },
-  emptyState: {
-    flex: 1,
-    padding: 16,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  recentSearches: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  recentSearchItem: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  recentSearchText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  categoriesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  categoryCard: {
-    width: (width - 64) / 3,
-    backgroundColor: '#F9FAFB',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    gap: 8,
-  },
-  categoryIcon: {
-    fontSize: 24,
-  },
-  categoryName: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#374151',
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  resultsContainer: {
-    flex: 1,
-  },
-  resultsHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  resultsCount: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  resultsList: {
-    padding: 16,
-  },
-  productRow: {
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  productCard: {
-    width: PRODUCT_WIDTH,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
-    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+  },
+  filterBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    elevation: 1,
+  },
+  filterButtonText: {
+    marginLeft: 4,
+    color: '#2E7D32',
+    fontWeight: 'bold',
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    elevation: 1,
+  },
+  sortButtonText: {
+    marginLeft: 4,
+    color: '#2E7D32',
+    fontWeight: 'bold',
+  },
+  recordingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF9800',
+    paddingVertical: 8,
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#fff',
+    marginRight: 8,
+  },
+  recordingText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  content: {
+    flex: 1,
+  },
+  section: {
+    padding: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#333',
+  },
+  recentSearches: {
+    flexDirection: 'column',
+  },
+  recentSearchItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  recentSearchText: {
+    marginLeft: 8,
+    fontSize: 16,
+    color: '#666',
+  },
+  categoriesList: {
+    paddingRight: 16,
+  },
+  categoryCard: {
+    alignItems: 'center',
+    marginRight: 16,
+    width: 80,
+  },
+  categoryImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: 8,
+  },
+  categoryName: {
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#333',
+  },
+  productRow: {
+    justifyContent: 'space-between',
+  },
+  productCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    margin: 4,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    width: '48%',
   },
   productImage: {
     width: '100%',
-    height: 140,
-    resizeMode: 'cover',
-  },
-  discountBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  discountText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    height: 120,
+    borderRadius: 8,
+    marginBottom: 8,
   },
   productInfo: {
-    padding: 12,
+    flex: 1,
   },
   productName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: 'bold',
     marginBottom: 4,
+    color: '#333',
   },
-  productBrand: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 6,
+  productPrice: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2E7D32',
+    marginBottom: 4,
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 4,
   },
-  rating: {
+  ratingText: {
+    marginLeft: 4,
     fontSize: 12,
-    fontWeight: '500',
-    color: '#374151',
+    color: '#666',
   },
-  reviewCount: {
+  outOfStock: {
+    color: '#D32F2F',
     fontSize: 12,
-    color: '#6B7280',
+    fontWeight: 'bold',
+    marginTop: 4,
   },
-  priceContainer: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  price: {
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  filterContent: {
+    flex: 1,
+    padding: 20,
+  },
+  filterSection: {
+    marginBottom: 24,
+  },
+  filterSectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1F2937',
+    marginBottom: 12,
   },
-  originalPrice: {
+  priceInputs: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  priceInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  priceSeparator: {
+    marginHorizontal: 12,
+    color: '#666',
+  },
+  ratingFilter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  categoryFilterItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginRight: 8,
+  },
+  selectedCategoryFilter: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
+  categoryFilterText: {
     fontSize: 14,
-    color: '#9CA3AF',
-    textDecorationLine: 'line-through',
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  sortOptionText: {
+    marginLeft: 8,
+    fontSize: 16,
+  },
+  checkboxOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  checkboxText: {
+    marginLeft: 8,
+    fontSize: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  clearButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+  },
+  clearButtonText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  applyButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginLeft: 8,
+    backgroundColor: '#2E7D32',
+    borderRadius: 8,
+  },
+  applyButtonText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });

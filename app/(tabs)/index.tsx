@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, Bell, Mic, Filter, Star, ShoppingCart } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { blink } from '@/lib/blink';
 import { Product } from '@/types';
 
@@ -35,6 +36,7 @@ interface DatabaseProduct {
 }
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [user, setUser] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
@@ -133,7 +135,10 @@ export default function HomeScreen() {
   };
 
   const renderProductCard = ({ item }: { item: Product }) => (
-    <TouchableOpacity style={styles.productCard}>
+    <TouchableOpacity 
+      style={styles.productCard}
+      onPress={() => router.push(`/(tabs)/product-detail?id=${item.id}`)}
+    >
       <Image source={{ uri: item.images[0] }} style={styles.productImage} />
       {item.originalPrice && (
         <View style={styles.discountBadge}>
@@ -160,7 +165,10 @@ export default function HomeScreen() {
         </View>
         <TouchableOpacity 
           style={styles.addToCartButton}
-          onPress={() => addToCart(item)}
+          onPress={(e) => {
+            e.stopPropagation();
+            addToCart(item);
+          }}
         >
           <ShoppingCart size={16} color="#FFFFFF" />
           <Text style={styles.addToCartText}>Add to Cart</Text>
@@ -252,14 +260,21 @@ export default function HomeScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.featuredContainer}>
                 {featuredProducts.map((product) => (
-                  <TouchableOpacity key={product.id} style={styles.featuredCard}>
+                  <TouchableOpacity 
+                    key={product.id} 
+                    style={styles.featuredCard}
+                    onPress={() => router.push(`/(tabs)/product-detail?id=${product.id}`)}
+                  >
                     <Image source={{ uri: product.images[0] }} style={styles.featuredImage} />
                     <View style={styles.featuredInfo}>
                       <Text style={styles.featuredName} numberOfLines={2}>{product.name}</Text>
                       <Text style={styles.featuredPrice}>₹{product.price.toLocaleString()}</Text>
                       <TouchableOpacity 
                         style={styles.featuredCartButton}
-                        onPress={() => addToCart(product)}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          addToCart(product);
+                        }}
                       >
                         <Text style={styles.featuredCartText}>Add to Cart</Text>
                       </TouchableOpacity>
