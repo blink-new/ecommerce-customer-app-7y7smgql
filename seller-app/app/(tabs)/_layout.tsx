@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Package, ShoppingBag, BarChart3, Settings, Plus } from 'lucide-react-native';
+import { Package, ShoppingBag, BarChart3, Settings, Plus, Bell } from 'lucide-react-native';
 import React from 'react';
 
 export default function TabLayout() {
@@ -49,6 +49,13 @@ export default function TabLayout() {
         options={{
           title: 'Orders',
           tabBarIcon: ({ color, size }) => <ShoppingBag size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notifications',
+          tabBarIcon: ({ color, size }) => <Bell size={size} color={color} />,
         }}
       />
       <Tabs.Screen

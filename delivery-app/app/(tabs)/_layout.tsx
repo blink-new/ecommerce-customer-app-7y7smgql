@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { MapPin, Package, TrendingUp, User, Navigation } from 'lucide-react-native';
+import { MapPin, Package, TrendingUp, User, Navigation, Bell } from 'lucide-react-native';
 import React from 'react';
 
 export default function TabLayout() {
@@ -49,6 +49,13 @@ export default function TabLayout() {
         options={{
           title: 'Navigate',
           tabBarIcon: ({ color, size }) => <Navigation size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notifications',
+          tabBarIcon: ({ color, size }) => <Bell size={size} color={color} />,
         }}
       />
       <Tabs.Screen

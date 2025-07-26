@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { blink } from '../../lib/blink';
+import { notificationService } from '../../lib/notification-service';
 
 interface CartItem {
   id: string;
@@ -255,6 +256,24 @@ export default function CheckoutScreen() {
         estimated_delivery: new Date(Date.now() + (selectedSlot?.time.includes('Same Day') ? 1 : 3) * 24 * 60 * 60 * 1000).toISOString(),
       });
 
+      // Send payment success notification
+      if (paymentStatus === 'razorpay_success') {
+        await notificationService.sendPaymentSuccess(
+          user.id,
+          order.id,
+          finalTotal,
+          selectedPayment.name
+        );
+      }
+
+      // Start the automated order workflow with notifications
+      await notificationService.simulateOrderWorkflow(
+        order.id,
+        user.id, // customer
+        'seller_1', // seller
+        'delivery_1' // delivery partner
+      );
+
       // Clear cart
       for (const item of cartItems) {
         await blink.db.cartItems.delete(item.id);
@@ -262,9 +281,9 @@ export default function CheckoutScreen() {
 
       Alert.alert(
         'Order Placed Successfully!', 
-        `Your order has been placed and will be delivered in ${selectedSlot?.time}. Order ID: ${order.id}`,
+        `Your order has been placed and will be delivered in ${selectedSlot?.time}. Check notifications for real-time updates!`,
         [
-          { text: 'Track Order', onPress: () => router.push('/(tabs)/profile') },
+          { text: 'View Notifications', onPress: () => router.push('/(tabs)/notifications') },
           { text: 'Continue Shopping', onPress: () => router.push('/(tabs)/index') }
         ]
       );
